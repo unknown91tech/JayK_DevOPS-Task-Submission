@@ -76,6 +76,8 @@ services:
       - /app/node_modules
     profiles:
       - dev
+  
+  
 
 volumes:
   postgres_data:
