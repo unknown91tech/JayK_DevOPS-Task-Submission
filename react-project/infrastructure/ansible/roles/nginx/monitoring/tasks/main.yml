@@ -1,0 +1,39 @@
+
+- name: Create monitoring directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+    - /opt/monitoring
+    - /opt/monitoring/prometheus
+    - /opt/monitoring/grafana
+    - /opt/monitoring/alertmanager
+
+- name: Copy monitoring docker-compose file
+  template:
+    src: docker-compose.monitoring.yml.j2
+    dest: /opt/monitoring/docker-compose.yml
+
+- name: Copy Prometheus configuration
+  template:
+    src: prometheus.yml.j2
+    dest: /opt/monitoring/prometheus/prometheus.yml
+
+- name: Copy Grafana dashboard
+  template:
+    src: grafana-dashboard.json
+    dest: /opt/monitoring/grafana/dashboards/dashboard.json
+
+- name: Start monitoring stack
+  command: docker-compose up -d
+  args:
+    chdir: /opt/monitoring
+
+- name: Wait for services to be ready
+  wait_for:
+    port: "{{ item }}"
+    delay: 10
+  loop:
+    - 9090  # Prometheus
+    - 3001  # Grafana

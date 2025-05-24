@@ -1,0 +1,14 @@
+- name: Configure web servers
+  hosts: webservers
+  become: true
+  roles:
+    - docker
+    - nginx
+    - monitoring
+
+- name: Configure monitoring servers
+  hosts: monitoring
+  become: true
+  roles:
+    - docker
+    - monitoring
