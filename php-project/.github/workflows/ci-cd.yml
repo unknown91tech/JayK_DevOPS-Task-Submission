@@ -1,0 +1,108 @@
+name: BLUMEX CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  ci-cd:
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+          MYSQL_DATABASE: blumex
+          MYSQL_USER: blumexuser
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+
+      blumechain-node:
+        image: node:18-alpine
+        ports:
+          - 8545:8545
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql, gd, zip
+          tools: composer
+
+      - name: Install Composer Dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: Run PHP Linting
+        run: php -f scripts/lint.php
+
+      - name: Run Security Scanning
+        run: php -f scripts/security_scan.php
+
+      - name: Run Unit Tests
+        run: php -f vendor/bin/phpunit --testsuite unit
+
+      - name: Run Integration Tests
+        env:
+          DB_HOST: mysql
+          DB_NAME: blumex
+          DB_USER: blumexuser
+          DB_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          BLUMECHAIN_NODE_URL: http://blumechain-node:8545
+        run: php -f vendor/bin/phpunit --testsuite integration
+
+      - name: Run End-to-End Tests
+        env:
+          DB_HOST: mysql
+          DB_NAME: blumex
+          DB_USER: blumexuser
+          DB_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          BLUMECHAIN_NODE_URL: http://blumechain-node:8545
+        run: php -f scripts/e2e_tests.php
+
+      - name: Login to GitHub Container Registry
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build and Push Docker Images
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          docker-compose build
+          docker tag blumex-app:latest ghcr.io/${{ github.repository }}/blumex-app:latest
+          docker tag blumechain-node:latest ghcr.io/${{ github.repository }}/blumechain-node:latest
+          docker tag blumex-db:latest ghcr.io/${{ github.repository }}/blumex-db:latest
+          docker push ghcr.io/${{ github.repository }}/blumex-app:latest
+          docker push ghcr.io/${{ github.repository }}/blumechain-node:latest
+          docker push ghcr.io/${{ github.repository }}/blumex-db:latest
+
+      - name: Deploy to Staging
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+        run: php -f scripts/deploy.php
+
+      - name: Run Smoke Tests
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          STAGING_URL: ${{ secrets.STAGING_URL }}
+        run: php -f scripts/smoke_tests.php
+
+      - name: Rollback on Failure
+        if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: php -f scripts/rollback.php
