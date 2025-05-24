@@ -53,10 +53,63 @@ services:
       - blumex-network
     restart: unless-stopped
 
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: prometheus
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - blumex-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:9.5.3
+    container_name: grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    ports:
+      - "3000:3000"
+    networks:
+      - blumex-network
+    restart: unless-stopped
+
+  node-exporter:
+    image: prom/node-exporter:v1.6.0
+    container_name: node-exporter
+    ports:
+      - "9100:9100"
+    networks:
+      - blumex-network
+    restart: unless-stopped
+
+  mysql-exporter:
+    image: prom/mysqld-exporter:v0.14.0
+    container_name: mysql-exporter
+    environment:
+      - DATA_SOURCE_NAME=blumexuser:${MYSQL_PASSWORD}@(db:3306)/blumex
+    depends_on:
+      - db
+    ports:
+      - "9104:9104"
+    networks:
+      - blumex-network
+    restart: unless-stopped
+
 networks:
   blumex-network:
     driver: bridge
 
 volumes:
   db-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
     driver: local
