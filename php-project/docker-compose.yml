@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  blumex-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: blumex-app
+    environment:
+      - APP_ENV=production
+      - API_KEY=${BLUMEX_API_KEY}
+      - DB_HOST=db
+      - DB_NAME=blumex
+      - DB_USER=blumexuser
+      - DB_PASSWORD=${MYSQL_PASSWORD}
+      - BLUMECHAIN_NODE_URL=http://blumechain-node:8545
+    volumes:
+      - ./app:/var/www/html
+    depends_on:
+      - db
+      - blumechain-node
+    networks:
+      - blumex-network
+    restart: unless-stopped
+
+  blumechain-node:
+    build:
+      context: ./blumechain
+      dockerfile: Dockerfile
+    container_name: blumechain-node
+    environment:
+      - NODE_ENV=production
+      - RPC_PORT=8545
+    ports:
+      - "8545:8545"
+    networks:
+      - blumex-network
+    restart: unless-stopped
+
+  db:
+    build:
+      context: .
+      dockerfile: Dockerfile.mysql
+    container_name: blumex-db
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=blumex
+      - MYSQL_USER=blumexuser
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    volumes:
+      - db-data:/var/lib/mysql
+    networks:
+      - blumex-network
+    restart: unless-stopped
+
+networks:
+  blumex-network:
+    driver: bridge
+
+volumes:
+  db-data:
+    driver: local

@@ -1,0 +1,20 @@
+# Use a minimalist MySQL base image
+FROM mysql:8.0
+
+# Set environment variables for MySQL
+ENV MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD} \
+    MYSQL_DATABASE=blumex \
+    MYSQL_USER=blumexuser \
+    MYSQL_PASSWORD=${MYSQL_PASSWORD}
+
+# Copy custom MySQL configuration (optional)
+COPY ./mysql-config/my.cnf /etc/mysql/conf.d/my.cnf
+
+# Set permissions for configuration
+RUN chmod 644 /etc/mysql/conf.d/my.cnf
+
+# Expose MySQL port
+EXPOSE 3306
+
+# MySQL runs as mysql user by default (non-root)
+CMD ["mysqld"]

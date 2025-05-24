@@ -1,0 +1,32 @@
+# Use a minimalist Node.js base image
+FROM node:18-alpine
+
+# Set working directory
+WORKDIR /app
+
+# Install dependencies
+RUN apk add --no-cache \
+    bash \
+    curl
+
+# Copy BLUMECHAIN node application
+COPY ./blumechain /app
+
+# Install node dependencies
+RUN npm install --production
+
+# Create a non-root user
+RUN adduser -u 1001 -D -S blumechainuser
+
+# Set permissions
+RUN chown -R blumechainuser:blumechainuser /app \
+    && chmod -R 755 /app
+
+# Run as non-root user
+USER blumechainuser
+
+# Expose port for BLUMECHAIN node (adjust as per BLUMECHAIN requirements)
+EXPOSE 8545
+
+# Start the blockchain node
+CMD ["node", "index.js"]
